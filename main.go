@@ -6,6 +6,8 @@ import (
 	"flag"
 	"io/ioutil"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strings"
 	"unicode"
@@ -26,6 +28,7 @@ var (
 	ircchannel = flag.String("irc.channels", "#fate", "irc channels")
 	ircnick    = flag.String("irc.nick", "fate", "irc nickname")
 	configFile = flag.String("config", "", "config file")
+	pprof      = flag.String("pprof", "", "run http server (host:port)")
 )
 
 func main() {
@@ -51,6 +54,12 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error: %s", err)
 		}
+	}
+
+	if *pprof != "" {
+		go func() {
+			log.Fatal(http.ListenAndServe(*pprof, nil))
+		}()
 	}
 
 	opts := &Options{
