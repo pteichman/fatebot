@@ -12,10 +12,11 @@ import (
 )
 
 type Options struct {
-	Server   string
-	Nick     string
-	Channels []string
-	Ignore   []string
+	Server    string
+	Nick      string
+	Channels  []string
+	Passwords map[string]string
+	Ignore    []string
 }
 
 // Backoff policy, milliseconds per attempt. End up with 30s attempts.
@@ -49,16 +50,17 @@ func RunForever(m *fate.Model, o *Options) {
 	stop := make(chan bool)
 	conn := irc.SimpleClient(o.Nick)
 
-	conn.Config().Server = o.Server
+	config := conn.Config()
+	config.Server = o.Server
 
-	conn.Me().Ident = o.Nick
-	conn.Me().Name = o.Nick
+	me := conn.Me()
+	me.Ident = o.Nick
+	me.Name = o.Nick
 
 	conn.HandleFunc("connected", func(conn *irc.Conn, line *irc.Line) {
-		log.Printf("Connected to %s. Joining %s.", o.Server,
-			strings.Join(o.Channels, ", "))
+		log.Printf("Connected to %s. Joining %v.", o.Server, o.Channels)
 		for _, channel := range o.Channels {
-			conn.Join(channel)
+			conn.Join(channel, o.Passwords[channel])
 		}
 	})
 
@@ -71,7 +73,7 @@ func RunForever(m *fate.Model, o *Options) {
 		if line.Args[1] == o.Nick {
 			var channel = line.Args[0]
 			log.Printf("Kicked from %s. Rejoining.", channel)
-			conn.Join(channel)
+			conn.Join(channel, o.Passwords[channel])
 		}
 	})
 
@@ -120,7 +122,7 @@ func RunForever(m *fate.Model, o *Options) {
 
 func in(haystack []string, needle string) bool {
 	for _, h := range haystack {
-		if h == needle {
+		if h == needle || strings.Index(h, needle+":") == 0 {
 			return true
 		}
 	}

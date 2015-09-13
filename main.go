@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -15,36 +17,54 @@ import (
 	"github.com/pteichman/fate"
 )
 
+type ConfigFile struct {
+	Passwords map[string]string
+}
+
 var (
 	ircserver  = flag.String("irc.server", "", "irc server (host:port)")
 	ircchannel = flag.String("irc.channels", "#fate", "irc channels")
 	ircnick    = flag.String("irc.nick", "fate", "irc nickname")
+	configFile = flag.String("config", "", "config file")
 )
 
 func main() {
 	flag.Parse()
 
-	config := fate.Config{Stemmer: newStemmer()}
-	model := fate.NewModel(config)
+	var passwords ConfigFile
+	if *configFile != "" {
+		configBytes, err := ioutil.ReadFile(*configFile)
+		if err != nil {
+			log.Fatal("Reading configFile: " + err.Error())
+		}
+
+		err = json.Unmarshal(configBytes, &passwords)
+		if err != nil {
+			log.Fatal("Unmarshaling configFile: " + err.Error())
+		}
+	}
+
+	model := fate.NewModel(fate.Config{Stemmer: newStemmer()})
 
 	for _, f := range flag.Args() {
 		err := learnFile(model, f)
 		if err != nil {
-			log.Fatal("Error: %s\n", err)
+			log.Fatalf("Error: %s", err)
 		}
 	}
 
 	opts := &Options{
-		Server:   *ircserver,
-		Nick:     *ircnick,
-		Channels: []string{*ircchannel},
+		Server:    *ircserver,
+		Nick:      *ircnick,
+		Channels:  strings.Split(*ircchannel, ","),
+		Passwords: passwords.Passwords,
 	}
 
 	RunForever(model, opts)
 }
 
 type stemmer struct {
-	tran transform.Transformer
+	tran     transform.Transformer
 	snowball *snowball.Stemmer
 }
 
@@ -56,7 +76,7 @@ func newStemmer() stemmer {
 	stem, _ := snowball.New("english")
 
 	return stemmer{
-		tran: transform.Chain(norm.NFD, transform.RemoveFunc(isRemovable), norm.NFC),
+		tran:     transform.Chain(norm.NFD, transform.RemoveFunc(isRemovable), norm.NFC),
 		snowball: stem,
 	}
 }
