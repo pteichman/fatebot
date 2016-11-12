@@ -27,6 +27,7 @@ var (
 	ircserver  = flag.String("irc.server", "", "irc server (host:port)")
 	ircchannel = flag.String("irc.channels", "#fate", "irc channels")
 	ircnick    = flag.String("irc.nick", "fate", "irc nickname")
+	ssl        = flag.Bool("ssl", true, "connect using ssl")
 	configFile = flag.String("config", "", "config file")
 	pprof      = flag.String("pprof", "", "run http server (host:port)")
 )
@@ -64,6 +65,7 @@ func main() {
 
 	opts := &Options{
 		Server:    *ircserver,
+		SSL:       *ssl,
 		Nick:      *ircnick,
 		Channels:  strings.Split(*ircchannel, ","),
 		Passwords: passwords.Passwords,

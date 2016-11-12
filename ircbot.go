@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 type Options struct {
 	Server    string
 	Nick      string
+	SSL       bool
 	Channels  []string
 	Passwords map[string]string
 	Ignore    []string
@@ -52,6 +54,13 @@ func RunForever(m *fate.Model, o *Options) {
 
 	config := conn.Config()
 	config.Server = o.Server
+
+	if o.SSL {
+		config.SSL = true
+		config.SSLConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
 
 	me := conn.Me()
 	me.Ident = o.Nick
