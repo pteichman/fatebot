@@ -48,6 +48,12 @@ func main() {
 		}
 	}
 
+	if *pprof != "" {
+		go func() {
+			log.Fatal(http.ListenAndServe(*pprof, nil))
+		}()
+	}
+
 	model := fate.NewModel(fate.Config{Stemmer: newStemmer()})
 
 	for _, f := range flag.Args() {
@@ -55,12 +61,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error: %s", err)
 		}
-	}
-
-	if *pprof != "" {
-		go func() {
-			log.Fatal(http.ListenAndServe(*pprof, nil))
-		}()
 	}
 
 	opts := &Options{
@@ -94,7 +94,7 @@ func newStemmer() stemmer {
 
 func (s stemmer) Stem(word string) string {
 	str, _, _ := transform.String(s.tran, word)
-	return s.snowball.Stem(strings.ToLower(str))
+	return Squish(s.snowball.Stem(strings.ToLower(str)), 2)
 }
 
 func learnFile(m *fate.Model, path string) error {
