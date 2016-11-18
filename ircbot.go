@@ -119,9 +119,14 @@ func RunForever(m *fate.Model, o *Options) {
 		m.Learn(msg)
 
 		if to == o.Nick {
-			reply := m.Reply(msg)
-			log.Printf("Reply: %s", reply)
-			conn.Privmsg(target, fmt.Sprintf("%s: %s", user, reply))
+			go func() {
+				delay := time.After(250 * time.Millisecond)
+				reply := fate.QuoteFix(m.Reply(msg))
+				<-delay
+
+				log.Printf("Reply: %s", reply)
+				conn.Privmsg(target, fmt.Sprintf("%s: %s", user, reply))
+			}()
 		}
 	})
 
