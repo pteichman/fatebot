@@ -4,22 +4,12 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
-	"regexp"
 	"strings"
 	"time"
 
 	irc "github.com/fluffle/goirc/client"
 	"github.com/pteichman/fate"
 )
-
-type Options struct {
-	Server    string
-	Nick      string
-	SSL       bool
-	Channels  []string
-	Passwords map[string]string
-	Ignore    []string
-}
 
 // Backoff policy, milliseconds per attempt. End up with 30s attempts.
 var backoff = []int{0, 0, 10, 30, 100, 300, 1000, 3000, 10000, 30000}
@@ -32,7 +22,7 @@ func backoffDuration(i int) time.Duration {
 	return time.Duration(backoff[len(backoff)-1]) * time.Millisecond
 }
 
-func backoffConnect(conn *irc.Conn, o *Options) {
+func backoffConnect(conn *irc.Conn, c Config) {
 	for i := 0; true; i++ {
 		wait := backoffDuration(i)
 		time.Sleep(wait)
@@ -43,19 +33,20 @@ func backoffConnect(conn *irc.Conn, o *Options) {
 			break
 		}
 
-		log.Printf("Connection to %s failed: %s [%dms]", o.Server, err,
+		log.Printf("Connection to %s failed: %s [%dms]", c.Server, err,
 			int64(wait/time.Millisecond))
 	}
 }
 
-func RunForever(m *fate.Model, o *Options) {
+func RunForever(m *fate.Model, c Config) {
 	stop := make(chan bool)
-	conn := irc.SimpleClient(o.Nick)
+	conn := irc.SimpleClient(c.Nick)
 
 	config := conn.Config()
-	config.Server = o.Server
+	config.Server = c.Server
+	config.Pass = c.Password
 
-	if o.SSL {
+	if c.SSL {
 		config.SSL = true
 		config.SSLConfig = &tls.Config{
 			InsecureSkipVerify: true,
@@ -63,42 +54,35 @@ func RunForever(m *fate.Model, o *Options) {
 	}
 
 	me := conn.Me()
-	me.Ident = o.Nick
-	me.Name = o.Nick
+	me.Ident = c.Nick
+	me.Name = c.Nick
 
 	conn.HandleFunc("connected", func(conn *irc.Conn, line *irc.Line) {
-		log.Printf("Connected to %s. Joining %v.", o.Server, o.Channels)
-		for _, channel := range o.Channels {
-			conn.Join(channel, o.Passwords[channel])
+		log.Printf("Connected to %s. Joining %v.", c.Server, c.Channels)
+		for _, channel := range c.Channels {
+			conn.Join(channel.Name, channel.Password)
 		}
 	})
 
 	conn.HandleFunc("disconnected", func(conn *irc.Conn, line *irc.Line) {
-		log.Printf("Disconnected from %s.", o.Server)
-		backoffConnect(conn, o)
+		log.Printf("Disconnected from %s.", c.Server)
+		backoffConnect(conn, c)
 	})
 
-	conn.HandleFunc("kick", func(conn *irc.Conn, line *irc.Line) {
-		if line.Args[1] == o.Nick {
-			var channel = line.Args[0]
-			log.Printf("Kicked from %s. Rejoining.", channel)
-			conn.Join(channel, o.Passwords[channel])
-		}
-	})
-
-	// The space after comma/colon is needed so we won't treat
-	// urls as messages spoken to http.
-	userMsg := regexp.MustCompile(`^(\S+)[,:]\s(.*?)$`)
+	var channels []string
+	for _, ch := range c.Channels {
+		channels = append(channels, ch.Name)
+	}
 
 	conn.HandleFunc("privmsg", func(conn *irc.Conn, line *irc.Line) {
 		user := line.Nick
-		if in(o.Ignore, user) {
+		if in(c.IgnoreNicks, user) {
 			log.Printf("Ignoring privmsg from %s", user)
 			return
 		}
 
 		target := line.Args[0]
-		if !in(o.Channels, target) {
+		if !in(channels, target) {
 			log.Printf("Ignoring privmsg on %s", target)
 			return
 		}
@@ -118,7 +102,7 @@ func RunForever(m *fate.Model, o *Options) {
 		log.Printf("Learn: %s", msg)
 		m.Learn(msg)
 
-		if to == o.Nick {
+		if to == c.Nick {
 			go func() {
 				delay := time.After(250 * time.Millisecond)
 				reply := fate.QuoteFix(m.Reply(msg))
@@ -130,7 +114,7 @@ func RunForever(m *fate.Model, o *Options) {
 		}
 	})
 
-	backoffConnect(conn, o)
+	backoffConnect(conn, c)
 	<-stop
 }
 
