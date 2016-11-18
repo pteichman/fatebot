@@ -48,6 +48,12 @@ func main() {
 		}
 	}
 
+	if *pprof != "" {
+		go func() {
+			log.Fatal(http.ListenAndServe(*pprof, nil))
+		}()
+	}
+
 	model := fate.NewModel(fate.Config{Stemmer: newStemmer()})
 
 	for _, f := range flag.Args() {
@@ -55,12 +61,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error: %s", err)
 		}
-	}
-
-	if *pprof != "" {
-		go func() {
-			log.Fatal(http.ListenAndServe(*pprof, nil))
-		}()
 	}
 
 	opts := &Options{
