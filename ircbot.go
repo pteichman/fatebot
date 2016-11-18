@@ -87,14 +87,18 @@ func RunForever(m *fate.Model, c Config) {
 			return
 		}
 
-		var to, msg string
+		var (
+			to  = ""
+			msg = strings.TrimSpace(line.Args[1])
+		)
 
-		groups := userMsg.FindStringSubmatch(line.Args[1])
-		if len(groups) > 0 {
-			to = groups[1]
-			msg = groups[2]
-		} else {
-			msg = line.Args[1]
+		first := firstword(msg)
+		if strings.HasPrefix(first, "@") {
+			to = first[1:]
+			msg = msg[len(first):]
+		} else if strings.HasSuffix(first, ":") {
+			to = first[:len(first)-1]
+			msg = msg[len(first):]
 		}
 
 		msg = strings.TrimSpace(msg)
@@ -116,6 +120,14 @@ func RunForever(m *fate.Model, c Config) {
 
 	backoffConnect(conn, c)
 	<-stop
+}
+
+func firstword(s string) string {
+	i := strings.Index(s, " ")
+	if i == -1 {
+		return s
+	}
+	return s[:i]
 }
 
 func in(haystack []string, needle string) bool {
